@@ -42,12 +42,12 @@ typedef struct
 
 kernel_pid_t thread_ID [27] = {0};
 
-static clock_t start, end;
+static clock_t start[28], end[28];
 static double cpu_time_used; 
 
 int main(void)
 {
-    printf("\nMain thread started, pid: %" PRIkernel_pid "\n", thread_getpid());
+    printf("\nMain thread ID:%" PRIkernel_pid "\n", thread_getpid());
 
     int sudoku[9][9] =
     {
@@ -62,10 +62,10 @@ int main(void)
             {2, 8, 5, 4, 7, 3, 9, 1, 6}
     };
     
-    start = clock();
+    start[0] = clock();
     bool test_checker_single_thread = sudoku_checker(sudoku);
-    end = clock();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    end[0] = clock();
+    cpu_time_used = ((double) (end[0] - start[0])) / CLOCKS_PER_SEC;
     printf("the time used is: %f\n",cpu_time_used);
     
     if (test_checker_single_thread){
@@ -89,7 +89,7 @@ int main(void)
                 gridData->row = i;
                 gridData->col = j;
                 gridData->board = sudoku;
-                start = clock();
+                start[thread_index+1] = clock();
                 thread_ID[thread_index] = thread_create(
                     test_thread_stack, 
                     sizeof(test_thread_stack), 
@@ -99,7 +99,8 @@ int main(void)
                     gridData, 
                     "Check Grid"
                     );
-                end = clock();
+                end[thread_index+1] = clock();
+                thread_index ++;
             }
 
             if (j == 0)
@@ -108,32 +109,54 @@ int main(void)
                 rowData->row = i;
                 rowData->col = j;
                 rowData->board = sudoku;
-                start = clock();
+                start[thread_index+1] = clock();
                 thread_ID[thread_index] = thread_create(
                     test_thread_stack, 
                     sizeof(test_thread_stack), 
                     THREAD_PRIORITY_MAIN - 1, 
                     THREAD_CREATE_STACKTEST, 
-                    check_grid, 
-                    gridData, 
-                    "Check Grid"
+                    check_rows, 
+                    rowData, 
+                    "Check Rows"
                     );
-                 end = clock();
-             }
+                end[thread_index+1] = clock();
+                thread_index ++;
+            }
+
+            if (i == 0)
+            {
+                parameters* columnData = (parameters*)malloc(sizeof(parameters));
+                columnData->row = i;
+                columnData->col = j;
+                columnData->board = sudoku;
+                start[thread_index+1] = clock();
+                thread_ID[thread_index] = thread_create(
+                    test_thread_stack, 
+                    sizeof(test_thread_stack), 
+                    THREAD_PRIORITY_MAIN - 1, 
+                    THREAD_CREATE_STACKTEST, 
+                    check_cols, 
+                    columnData, 
+                    "Check Columns"
+                    );
+                end[thread_index+1]  = clock();
+                thread_index ++;
+            }
         }
     }
-    
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("the time used is: %f\n",cpu_time_used);
 
-
+    printf("\nTime to run multiple threads\n");
+    for (int t=0; t<27; t++)
+    {
+        printf("thread %d tooke %f time for completion \n", t+3, ((double) (end[t+1] - start[t+1])) / CLOCKS_PER_SEC);
+    }
 
 }
 
 // ------------------------------end main------------------
 void* check_grid(void* params)
 {
-    // printf("Thread ID: %" PRIkernel_pid " \t TIME  %ld \n",thread_getpid(), clock());
+    printf("Thread ID: %" PRIkernel_pid " \n",thread_getpid());
     parameters* data = (parameters*)params;
     int startRow = data->row;
     int startCol = data->col;
@@ -158,7 +181,6 @@ void* check_grid(void* params)
                 validarray[val] = 1;
             }
         }
-        printf("\n");
     }
 
     // If the execution has reached this point, then the 3x3 sub-grid is valid.
@@ -171,6 +193,7 @@ void* check_grid(void* params)
 
 void* check_rows(void* params)
 {
+    printf("Thread ID: %" PRIkernel_pid " \n",thread_getpid());
     parameters* data = (parameters*)params;
     int row = data->row;
 
@@ -185,7 +208,6 @@ void* check_rows(void* params)
         }
         else
         {
-            printf("harihar\n");
             validarray[val] = 1;
         }
     }
@@ -197,7 +219,32 @@ void* check_rows(void* params)
     return NULL;
 }
 
+void* check_cols(void* params)
+{
+    printf("Thread ID: %" PRIkernel_pid " \n",thread_getpid());
+    parameters* data = (parameters*)params;
+    //int startRow = data->row;
+    int col = data->col;
 
+    int validarray[10] = { 0 };
+    for (int i = 0; i < 9; i++)
+    {
+        int val = data->board[i][col];
+        if (validarray[val] != 0)
+        {
+            thread_zombify();
+            thread_kill_zombie(thread_getpid());
+        }
+        else
+            validarray[val] = 1;
+    }
+
+    // If the execution has reached this point, then the column is valid.
+    thread_ID[18 + col] = 1; // Maps the column to an index in the third set of 9 indices of the result array
+    thread_zombify();
+    thread_kill_zombie(thread_getpid());
+    return NULL;
+}
 
 
 int chk_grid(int sudoku[9][9])
