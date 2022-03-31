@@ -249,6 +249,7 @@ void* check_cols(void* params)
 
 int chk_grid(int sudoku[9][9])
 {
+    printf("\tThread ID in single thread operation:%" PRIkernel_pid "\n", thread_getpid());
     int temp_row, temp_col;
 
     for (int i = 0; i < 3; ++i)
@@ -280,6 +281,7 @@ int chk_grid(int sudoku[9][9])
 
 int check_line(int input[9])
 {
+    printf("\thread ID in single thread operation:%" PRIkernel_pid "\n", thread_getpid());
     int validarray[10] = { 0 };
     for (int i = 0; i < 9; i++)
     {
